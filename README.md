@@ -1,2 +1,26 @@
-# truegitcodechurn
-Python script to compute "true" code churn of a Git repository.
+# True Git Code Churn
+A Python script to compute "true" code churn of a Git repository. Especially useful for software teams.
+
+Code churn has several definitions, the one that to me provides the most value as a metric is:
+
+> "Code churn is when an engineer rewrites their own code in a short period of time."
+
+*Reference: https://blog.gitprime.com/why-code-churn-matters/*
+
+Solutions that I've found online looked at changes to files irrespective whether these are new changes or edits to existing files. Hence this solution that segments code edits with new code changes.
+
+# How it works
+This script looks at a range of commits per author. For each commit it book-keeps the files that were changed along with the lines of code (LOC) for each file. LOC are kept in a sparse structure and changes per LOC are taken into account as the program loops. When a change to the same LOC is detected it updates this separately to bookkeep the true code churn.
+Result is a print with aggregated contribution and churn per author for a given time period.
+
+Tested with Python version 3.5.3 and Git version 2.20.1
+
+# Usage
+```bash
+python ./gitcodechurn.py --before=2019-03-01 --after=2018-11-29 --author="Some author" --dir=/Users/myname/myrepo
+```
+# Output
+```bash
+contribution:  844
+churn:  -28
+```
