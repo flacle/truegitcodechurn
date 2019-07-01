@@ -24,3 +24,5 @@ python ./gitcodechurn.py --before=2019-03-01 --after=2018-11-29 --author="Some a
 contribution:  844
 churn:  -28
 ```
+Outputs can be used as part of a pipeline that generates bar charts for reports:
+![contribution vs churn example chart](/chart.png)
