@@ -1,4 +1,8 @@
 '''
+Author: Francis Laclé
+License: MIT
+Version: 0.1
+
 Script to compute "true" code churn of a Git repository.
 
 Code churn has several definitions, the one that to me provides the
