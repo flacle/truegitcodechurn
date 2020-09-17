@@ -5,7 +5,7 @@ Code churn has several definitions, the one that to me provides the most value a
 
 > "Code churn is when an engineer rewrites their own code in a short period of time."
 
-*Reference: https://blog.gitprime.com/why-code-churn-matters/*
+*Reference: https://www.pluralsight.com/blog/teams/why-code-churn-matters*
 
 Solutions that I've found online looked at changes to files irrespective whether these are new changes or edits to existing files. Hence this solution that segments code edits (churn) with new code changes (contribution).
 
