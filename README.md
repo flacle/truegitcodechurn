@@ -7,7 +7,7 @@ Code churn has several definitions, the one that to me provides the most value a
 
 *Reference: https://www.pluralsight.com/blog/teams/why-code-churn-matters*
 
-Solutions that I've found online looked at changes to files irrespective whether these are new changes or edits to existing files. Hence this solution that segments code edits (churn) with new code changes (contribution).
+Solutions that I've found online looked at changes to files irrespective whether these are new changes or edits to existing lines of code within existing files. Hence this solution that segments line-of-code edits (churn) with new code changes (contribution).
 
 # How it works
 This script looks at a range of commits per author. For each commit it book-keeps the files that were changed along with the lines of code (LOC) for each file. LOC are kept in a sparse structure and changes per LOC are taken into account as the program loops. When a change to the same LOC is detected it updates this separately to bookkeep the true code churn.
