@@ -34,34 +34,53 @@ import datetime
 
 def main():
     parser = argparse.ArgumentParser(
-        description = 'Compute true git code churn (for project managers)'
+        description = 'Compute true git code churn to understand tech debt.',
+        usage       = 'python [*/]gitcodechurn.py before=YYY-MM-DD after=YYYY-MM-DD dir=[*/]path [-exdir=[*/]path] [-h]',
+        epilog      = 'Feel free to fork at or contribute on: https://github.com/flacle/truegitcodechurn'
     )
     parser.add_argument(
-        '--before',
+        'before',
         type = str,
         help = 'before a certain date, in YYYY-MM-DD format'
     )
     parser.add_argument(
-        '--after',
+        'after',
         type = str,
         help = 'after a certain date, in YYYY-MM-DD format'
     )
     parser.add_argument(
-        '--author',
+        'author',
         type = str,
         help = 'author string (not committer)'
     )
     parser.add_argument(
-        '--dir',
+        'dir',
+        type = dir_path,
+        default = '',
+        help = 'include Git repository directory'
+    )
+    parser.add_argument(
+        '-exdir',
+        metavar='',
         type = str,
-        help = 'Git repository directory'
+        default = '',
+        help = 'exclude Git repository subdirectory'
     )
     args = parser.parse_args()
 
     before = args.before
-    after = args.after
+    after  = args.after
     author = args.author
-    dir = args.dir
+    dir    = args.dir
+    # exdir is optional
+    exdir  = args.exdir
+
+    # for the positionals we remove the prefixes
+    # TODO not sure why this is happening
+    before  = remove_prefix(before, 'before=')
+    after   = remove_prefix(after, 'after=')
+    author  = remove_prefix(author, 'author=')
+    # dir is already handled in dir_path()
 
     commits = get_commits(before, after, author, dir)
 
@@ -77,16 +96,21 @@ def main():
             dir,
             files,
             contribution,
-            churn
+            churn,
+            exdir
         )
 
-    # print files in case more granular results are needed
     print('contribution: ', contribution)
     print('churn: ', -churn)
+    # print files in case more granular results are needed
+    #print('files: ', files)
 
-def get_loc(commit, dir, files, contribution, churn):
+def get_loc(commit, dir, files, contribution, churn, exdir):
     # git show automatically excludes binary file changes
     command = 'git show --format= --unified=0 --no-prefix ' + commit
+    if len(exdir) > 1:
+        # https://stackoverflow.com/a/21079437
+        command += ' -- . ":(exclude,icase)'+exdir+'"'
     results = get_proc_out(command, dir).splitlines()
     file = ''
     loc_changes = ''
@@ -164,7 +188,7 @@ def is_new_file(result, file):
         return file
 
 def get_commits(before, after, author, dir):
-    # note --no-merges flag (usually we coders do not overhaul contributions)
+    # note --no-merges flag (usually we coders do not overhaul contrib commits)
     # note --reverse flag to traverse history from past to present
     command = 'git log --author="'+author+'" --format="%h" --no-abbrev '
     command += '--before="'+before+'" --after="'+after+'" --no-merges --reverse'
@@ -189,6 +213,20 @@ def get_proc_out(command, dir):
         shell=True
     )
     return process.communicate()[0].decode("utf-8")
+
+# https://stackoverflow.com/a/54547257
+def dir_path(path):
+    path = remove_prefix(path, 'dir=')
+    if os.path.isdir(path):
+        return path
+    else:
+        raise argparse.ArgumentTypeError("Directory "+path+" is not a valid path.")
+
+#https://stackoverflow.com/a/16891418
+def remove_prefix(text, prefix):
+    if text.startswith(prefix):
+        return text[len(prefix):]
+    return text  # or whatever
 
 if __name__ == '__main__':
     main()
