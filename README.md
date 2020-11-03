@@ -13,8 +13,6 @@ Solutions that I've found online looked at changes to files irrespective whether
 This script looks at a range of commits per author. For each commit it bookkeeps the files that were changed along with the LOC for each file. LOC are kept in a sparse structure and changes per LOC are taken into account as the program loops. When a change to the same LOC is detected it updates this separately to bookkeep the true code churn.
 Result is a print with aggregated contribution and churn per author for a given time period.
 
-*Note: this does not look at LOC changes from the same author. A matter of opinion where I include LOC changes from author B on previous work of author A.*
-
 Tested with Python version 3.5.3 and Git version 2.20.1
 
 # Usage
