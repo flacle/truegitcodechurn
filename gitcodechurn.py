@@ -35,7 +35,7 @@ import datetime
 def main():
     parser = argparse.ArgumentParser(
         description = 'Compute true git code churn to understand tech debt.',
-        usage       = 'python [*/]gitcodechurn.py before="YYYY-MM-DD" after="YYYY-MM-DD" author="flacle" dir="[*/]path" [-exdir="[*/]path]" [-h]',
+        usage       = 'python [*/]gitcodechurn.py before="YYYY-MM-DD" after="YYYY-MM-DD" author="flacle" dir="[*/]path" [-exdir="[*/]path"] [-h]',
         epilog      = 'Feel free to fork at or contribute on: https://github.com/flacle/truegitcodechurn'
     )
     parser.add_argument(
