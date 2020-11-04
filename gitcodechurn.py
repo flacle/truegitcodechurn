@@ -35,18 +35,18 @@ import datetime
 def main():
     parser = argparse.ArgumentParser(
         description = 'Compute true git code churn to understand tech debt.',
-        usage       = 'python [*/]gitcodechurn.py before="YYYY-MM-DD" after="YYYY-MM-DD" author="flacle" dir="[*/]path" [-exdir="[*/]path"] [-h]',
+        usage       = 'python [*/]gitcodechurn.py after="YYYY[-MM[-DD]]" before="YYYY[-MM[-DD]]" author="flacle" dir="[*/]path" [-exdir="[*/]path"]',
         epilog      = 'Feel free to fork at or contribute on: https://github.com/flacle/truegitcodechurn'
-    )
-    parser.add_argument(
-        'before',
-        type = str,
-        help = 'before a certain date, in YYYY-MM-DD format'
     )
     parser.add_argument(
         'after',
         type = str,
-        help = 'after a certain date, in YYYY-MM-DD format'
+        help = 'after a certain date, in YYYY[-MM[-DD]] format'
+    )
+    parser.add_argument(
+        'before',
+        type = str,
+        help = 'before a certain date, in YYYY[-MM[-DD]] format'
     )
     parser.add_argument(
         'author',
@@ -68,8 +68,8 @@ def main():
     )
     args = parser.parse_args()
 
-    before = args.before
     after  = args.after
+    before = args.before
     author = args.author
     dir    = args.dir
     # exdir is optional
@@ -77,8 +77,8 @@ def main():
 
     # for the positionals we remove the prefixes
     # TODO not sure why this is happening
-    before  = remove_prefix(before, 'before=')
     after   = remove_prefix(after, 'after=')
+    before  = remove_prefix(before, 'before=')
     author  = remove_prefix(author, 'author=')
     # dir is already handled in dir_path()
 
@@ -100,8 +100,9 @@ def main():
             exdir
         )
 
-    print('contribution: ', contribution)
-    print('churn: ', -churn)
+    print('author: \t', author)
+    print('contribution: \t', contribution)
+    print('churn: \t\t', -churn)
     # print files in case more granular results are needed
     #print('files: ', files)
 
@@ -220,7 +221,7 @@ def dir_path(path):
     if os.path.isdir(path):
         return path
     else:
-        raise argparse.ArgumentTypeError("Directory "+path+" is not a valid path.")
+        raise argparse.ArgumentTypeError(path + " is not a valid path.")
 
 #https://stackoverflow.com/a/16891418
 def remove_prefix(text, prefix):
