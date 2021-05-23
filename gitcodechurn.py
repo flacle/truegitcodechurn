@@ -1,7 +1,7 @@
 '''
 Author: Francis Laclé
 License: MIT
-Version: 0.1
+Version: 1.0.1
 
 Script to compute "true" code churn of a Git repository.
 
@@ -13,8 +13,8 @@ rewrites their own code in a short period of time."
 
 Reference: https://blog.gitprime.com/why-code-churn-matters/
 
-This script looks at a range of commits per author. For each commit it
-book-keeps the files that were changed along with the lines of code (LOC)
+This lightweight script looks at a range of commits per author. For each commit
+it book-keeps the files that were changed along with the lines of code (LOC)
 for each file. LOC are kept in a sparse structure and changes per LOC are taken
 into account as the program loops. When a change to the same LOC is detected it
 updates this separately to bookkeep the true code churn.
@@ -170,8 +170,6 @@ def get_loc_change(loc_changes):
     else:
         return {left : left_dec, right: right_dec}
 
-
-
 def is_loc_change(result, loc_changes):
     # search for loc changes (@@ ) and update loc_changes variable
     if result.startswith('@@'):
@@ -191,9 +189,36 @@ def is_new_file(result, file):
 def get_commits(before, after, author, dir):
     # note --no-merges flag (usually we coders do not overhaul contrib commits)
     # note --reverse flag to traverse history from past to present
+    before = format_date(before)
+    after = format_date(after)
     command = 'git log --author="'+author+'" --format="%h" --no-abbrev '
     command += '--before="'+before+'" --after="'+after+'" --no-merges --reverse'
     return get_proc_out(command, dir).splitlines()
+
+# issue #6: append to date if it's missing month or day values
+def format_date(d):
+    d = d[:-1] if d.endswith('-') else d
+    if len(d) < 6:
+            # after is interpreted as 'after the year YYYY'
+            return d[0:4]+'-12-31'
+    elif len(d) < 8:
+        # here we need to check on which day a month ends
+        dt = datetime.datetime.strptime(d, '%Y-%m')
+        dt_day = get_month_last_day(dt)
+        dt_month = '{:02d}'.format(dt.month).__str__()
+        return d[0:4]+'-'+dt_month+'-'+dt_day
+    else:
+        dt = datetime.datetime.strptime(d, '%Y-%m-%d')
+        dt_day = '{:02d}'.format(dt.day).__str__()
+        dt_month = '{:02d}'.format(dt.month).__str__()
+        return d[0:4]+'-'+dt_month+'-'+dt_day
+
+# https://stackoverflow.com/a/43088
+def get_month_last_day(date):
+    if date.month == 12:
+        return date.replace(day=31)
+    ld = date.replace(month=date.month+1, day=1)-datetime.timedelta(days=1)
+    return ld.day.__str__()
 
 # not used but still could be of value in the future
 def get_files(commit, dir):

@@ -12,7 +12,7 @@ Solutions that I've found online looked at changes to files irrespective whether
 *Tested with Python version 3.5.3 and Git version 2.20.1*
 
 # How it works
-This script looks at a range of commits per author. For each commit it bookkeeps the files that were changed along with the LOC for each file. LOC are kept in a sparse structure and changes per LOC are taken into account as the program loops. When a change to the same LOC is detected it updates this separately to bookkeep the true code churn.
+This lightweight script looks at a range of commits per author. For each commit it bookkeeps the files that were changed along with the LOC for each file. LOC are kept in a sparse structure and changes per LOC are taken into account as the program loops. When a change to the same LOC is detected it updates this separately to bookkeep the true code churn.
 Result is a print with aggregated contribution and churn per author for a given time period.
 
 ***Note:*** This includes the `--no-merges` flag as it assumes that merge commits with or without merge conflicts are not indicative of churn.
