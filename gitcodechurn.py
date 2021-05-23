@@ -8,16 +8,16 @@ Script to compute "true" code churn of a Git repository.
 Code churn has several definitions, the one that to me provides the
 most value as a metric is:
 
-"Code churn is when an engineer
-rewrites their own code in a short period of time."
+"Code churn is when an engineer rewrites their own code in a short time period."
 
 Reference: https://blog.gitprime.com/why-code-churn-matters/
 
-This lightweight script looks at a range of commits per author. For each commit
-it book-keeps the files that were changed along with the lines of code (LOC)
-for each file. LOC are kept in a sparse structure and changes per LOC are taken
-into account as the program loops. When a change to the same LOC is detected it
-updates this separately to bookkeep the true code churn.
+This lightweight script looks at commits per author for a given date range on
+the default branch. For each commit it bookkeeps the files that were changed
+along with the lines of code (LOC) for each file. LOC are kept in a sparse
+structure and changes per LOC are taken into account as the program loops. When
+a change to the same LOC is detected it updates this separately to bookkeep the
+true code churn.
 
 Result is a print with aggregated contribution and churn per author for a
 given time period.
@@ -41,30 +41,30 @@ def main():
     parser.add_argument(
         'after',
         type = str,
-        help = 'after a certain date, in YYYY[-MM[-DD]] format'
+        help = 'search after a certain date, in YYYY[-MM[-DD]] format'
     )
     parser.add_argument(
         'before',
         type = str,
-        help = 'before a certain date, in YYYY[-MM[-DD]] format'
+        help = 'search before a certain date, in YYYY[-MM[-DD]] format'
     )
     parser.add_argument(
         'author',
         type = str,
-        help = 'author string (not committer)'
+        help = 'an author (non-committer), leave blank to scope all authors'
     )
     parser.add_argument(
         'dir',
         type = dir_path,
         default = '',
-        help = 'include Git repository directory'
+        help = 'the Git repository root directory to be included'
     )
     parser.add_argument(
         '-exdir',
         metavar='',
         type = str,
         default = '',
-        help = 'exclude Git repository subdirectory'
+        help = 'the Git repository subdirectory to be excluded'
     )
     args = parser.parse_args()
 
@@ -100,7 +100,13 @@ def main():
             exdir
         )
 
-    print('author: \t', author)
+    # if author is empty then print a unique list of authors
+    if len(author.strip()) == 0:
+        authors = set(get_commits(before, after, author, dir, '%an')).__str__()
+        authors = authors.replace('{', '').replace('}', '').replace("'","")
+        print('authors: \t', authors)
+    else:
+        print('author: \t', author)
     print('contribution: \t', contribution)
     print('churn: \t\t', -churn)
     # print files in case more granular results are needed
@@ -139,8 +145,9 @@ def get_loc(commit, dir, files, contribution, churn, exdir):
                 continue
     return [files, contribution, churn]
 
-# arrives in a format such as -13 +27,5 (no decimals == 1 loc change)
-# returns a dictionary where left are removals and right are additions
+# arrives in a format such as -13 +27,5 (no commas mean 1 loc change)
+# this is the chunk header where '-' is old and '+' is new
+# it returns a dictionary where left are removals and right are additions
 # if the same line got changed we subtract removals from additions
 def get_loc_change(loc_changes):
     # removals
@@ -186,12 +193,11 @@ def is_new_file(result, file):
     else:
         return file
 
-def get_commits(before, after, author, dir):
+# use format='%an' to get a list of author names
+def get_commits(before, after, author, dir, format='%h'):
     # note --no-merges flag (usually we coders do not overhaul contrib commits)
     # note --reverse flag to traverse history from past to present
-    before = format_date(before)
-    after = format_date(after)
-    command = 'git log --author="'+author+'" --format="%h" --no-abbrev '
+    command = 'git log --author="'+author+'" --format="'+format+'" --no-abbrev '
     command += '--before="'+before+'" --after="'+after+'" --no-merges --reverse'
     return get_proc_out(command, dir).splitlines()
 
