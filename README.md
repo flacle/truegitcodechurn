@@ -1,4 +1,6 @@
 # True Git Code Churn
+![GitHub release version](https://img.shields.io/github/v/release/flacle/truegitcodechurn.svg?sort=semver)
+
 A Python script to compute "true" code churn of a Git repository. Useful for software teams to openly help manage technical debt.
 
 Code churn has several definitions, the one that to me provides the most value as a metric is:
