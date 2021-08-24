@@ -31,6 +31,7 @@ import shlex
 import os
 import argparse
 import datetime
+from time import strptime
 
 def main():
     parser = argparse.ArgumentParser(
@@ -47,6 +48,16 @@ def main():
         'before',
         type = str,
         help = 'search before a certain date, in YYYY[-MM[-DD]] format'
+    )
+    parser.add_argument(
+        '-start-commit',
+        type = str,
+        help = 'search from a certain commit, in short SHA format'
+    )
+    parser.add_argument(
+        '-end-commit',
+        type = str,
+        help = 'search to a certain commit, in short SHA format'
     )
     parser.add_argument(
         'author',
@@ -70,6 +81,8 @@ def main():
 
     after  = args.after
     before = args.before
+    start_commit = args.start_commit
+    end_commit = args.end_commit
     author = args.author
     dir    = args.dir
     # exdir is optional
@@ -82,7 +95,20 @@ def main():
     author  = remove_prefix(author, 'author=')
     # dir is already handled in dir_path()
 
-    commits = get_commits(before, after, author, dir)
+    # retrive start and end commit date from given commit hashes
+    start_commit_date = get_commit_timestamp(start_commit, dir) if start_commit else None
+    end_commit_date = get_commit_timestamp(end_commit, dir) if end_commit else None
+
+    # sort commit date if necessary
+    if start_commit_date and end_commit_date:
+        start_commit_date, end_commit_date = sorted([start_commit_date, end_commit_date])
+
+    # return specified commit if it is the same for the start and end value
+    # otherwise look for commits in between
+    if start_commit is not None and start_commit == end_commit:
+        commits = [start_commit]
+    else :
+        commits = get_commits(end_commit_date or before, start_commit_date or after, author, dir)
 
     # structured like this: files -> LOC
     files = {}
@@ -102,7 +128,7 @@ def main():
 
     # if author is empty then print a unique list of authors
     if len(author.strip()) == 0:
-        authors = set(get_commits(before, after, author, dir, '%an')).__str__()
+        authors = set(get_commits(end_commit or before, start_commit or after, author, dir, '%an')).__str__()
         authors = authors.replace('{', '').replace('}', '').replace("'","")
         print('authors: \t', authors)
     else:
@@ -111,6 +137,29 @@ def main():
     print('churn: \t\t', -churn)
     # print files in case more granular results are needed
     #print('files: ', files)
+
+def get_commit_timestamp(commit_hash, dir):
+
+    # if the given hash is shorter than required it generate an error
+    if len(commit_hash) < 7:
+        raise argparse.ArgumentTypeError(commit_hash + " is not a valid commit hash.")
+
+    # take short hash if commit hash is too long
+    commit_hash = commit_hash[:7]
+
+    #look for log with corresponding hash
+    command = 'git show ' + commit_hash
+    results = get_proc_out(command, dir).splitlines()
+
+    # search the date and remove unwanted prefix and suffix
+    date_raw = [r for r in results if r.startswith("Date:")][0][5:-5].strip()
+
+    # transform the raw_date into a time object. Use this object to output the date in YYYY-MM-DD HH:mm format
+    date_object = strptime(date_raw)
+    res = f"{date_object.tm_year:04d}-{date_object.tm_mon:02d}-{date_object.tm_mday:02d} "
+    res += f"{date_object.tm_hour:02d}:{date_object.tm_min:02d}"
+
+    return res
 
 def get_loc(commit, dir, files, contribution, churn, exdir):
     # git show automatically excludes binary file changes
