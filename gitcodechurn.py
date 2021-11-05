@@ -26,11 +26,12 @@ Tested with Python version 3.5.3 and Git version 2.20.1
 
 '''
 
-import subprocess
-import shlex
-import os
 import argparse
 import datetime
+import os
+import shlex
+import subprocess
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -84,6 +85,22 @@ def main():
 
     commits = get_commits(before, after, author, dir)
 
+    files, contribution, churn = calculate_statistics(commits, dir, exdir)
+
+    # if author is empty then print a unique list of authors
+    if len(author.strip()) == 0:
+        authors = set(get_commits(before, after, author, dir, '%an')).__str__()
+        authors = authors.replace('{', '').replace('}', '').replace("'","")
+        print('authors: \t', authors)
+    else:
+        print('author: \t', author)
+    print('contribution: \t', contribution)
+    print('churn: \t\t', -churn)
+    # print files in case more granular results are needed
+    #print('files: ', files)
+
+
+def calculate_statistics(commits, dir, exdir):
     # structured like this: files -> LOC
     files = {}
 
@@ -100,17 +117,9 @@ def main():
             exdir
         )
 
-    # if author is empty then print a unique list of authors
-    if len(author.strip()) == 0:
-        authors = set(get_commits(before, after, author, dir, '%an')).__str__()
-        authors = authors.replace('{', '').replace('}', '').replace("'","")
-        print('authors: \t', authors)
-    else:
-        print('author: \t', author)
-    print('contribution: \t', contribution)
-    print('churn: \t\t', -churn)
-    # print files in case more granular results are needed
-    #print('files: ', files)
+    return files, contribution, churn
+    
+
 
 def get_loc(commit, dir, files, contribution, churn, exdir):
     # git show automatically excludes binary file changes
@@ -118,7 +127,7 @@ def get_loc(commit, dir, files, contribution, churn, exdir):
     if len(exdir) > 1:
         # https://stackoverflow.com/a/21079437
         command += ' -- . ":(exclude,icase)'+exdir+'"'
-    results = get_proc_out(command, dir).splitlines()
+    results = get_commit_results(command, dir) 
     file = ''
     loc_changes = ''
 
@@ -144,6 +153,11 @@ def get_loc(commit, dir, files, contribution, churn, exdir):
             else:
                 continue
     return [files, contribution, churn]
+
+
+def get_commit_results(command, dir):
+    return get_proc_out(command, dir).splitlines()
+
 
 # arrives in a format such as -13 +27,5 (no commas mean 1 loc change)
 # this is the chunk header where '-' is old and '+' is new
