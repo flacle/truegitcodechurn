@@ -104,6 +104,53 @@ def main():
     # print files in case more granular results are needed
     #print('files: ', files)
 
+    if args.show_file_data:
+        display_file_metrics(files)
+
+
+def display_file_metrics(files):
+    display_file_metrics_header()
+    for file_name, line_change_info in files.items():
+        for line_number, line_diff_stats in line_change_info.items():
+            display_file_metrics_row(file_name, line_number, line_diff_stats)
+
+
+def display_file_metrics_header():
+    print("-" * 79)
+    print(
+        "{file}|{line_number}|{lines_added}|{lines_removed}".format(
+            file=format_column("FILE NAME", 34),
+            line_number=format_column("LINE #", 10),
+            lines_added=format_column("ADDED", 10),
+            lines_removed=format_column("REMOVED", 10),
+        )
+    )
+
+
+def display_file_metrics_row(file_name, line_number, line_diff_stats):
+    added = line_diff_stats.get("lines_added")
+    removed = line_diff_stats.get("lines_removed")
+
+    if added == 0 and removed == 0:
+        return
+    print("-" * 79)
+    print(
+        "{file}|{ln}|{lines_added}|{lines_removed}".format(
+            file=format_column(file_name, 34),
+            ln=format_column(str(line_number), 10),
+            lines_added=format_column(str(added), 10),
+            lines_removed=format_column(str(removed), 10),
+        )
+    )
+
+
+def format_column(text, width):
+    text_length = len(text)
+    total_pad = width - text_length
+    pad_left = total_pad // 2
+    pad_right = total_pad - pad_left
+    return (" " * pad_left) + text + (" " * pad_right)
+
 
 def calculate_statistics(commits, dir, exdir):
     # structured like this: files -> LOC
@@ -150,11 +197,6 @@ def get_loc(commit, dir, files, contribution, churn, exdir):
                 (removal, addition) = get_loc_change(loc_changes)
 
                 files, contribution, churn = merge_operations(removal, addition, files, contribution, churn, file)
-                        files[file][loc] += locc[loc]
-                        churn += abs(locc[loc])
-                    else:
-                        files[file][loc] = locc[loc]
-                        contribution += abs(locc[loc])
             else:
                 continue
     return [files, contribution, churn]
