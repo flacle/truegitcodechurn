@@ -67,6 +67,11 @@ def main():
         default = '',
         help = 'the Git repository subdirectory to be excluded'
     )
+    parser.add_argument(
+        "--show-file-data",
+        action="store_true",
+        help="Display line change information for the analyzed file(s)"
+    )
     args = parser.parse_args()
 
     after  = args.after
