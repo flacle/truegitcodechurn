@@ -147,9 +147,9 @@ def get_loc(commit, dir, files, contribution, churn, exdir):
             new_loc_changes = is_loc_change(result, loc_changes)
             if loc_changes != new_loc_changes:
                 loc_changes = new_loc_changes
-                locc = get_loc_change(loc_changes)
-                for loc in locc:
-                    if loc in files[file]:
+                (removal, addition) = get_loc_change(loc_changes)
+
+                files, contribution, churn = merge_operations(removal, addition, files, contribution, churn, file)
                         files[file][loc] += locc[loc]
                         churn += abs(locc[loc])
                     else:
@@ -160,8 +160,89 @@ def get_loc(commit, dir, files, contribution, churn, exdir):
     return [files, contribution, churn]
 
 
-def get_commit_results(command, dir):
-    return get_proc_out(command, dir).splitlines()
+def merge_operations(removal, addition, files, contribution, churn, file):
+    # Ensure all required data is in place
+    ensure_file_exists(files, file)
+
+    file_line_churn_dict = files[file]
+
+    if is_noop(removal, addition):
+        # In the case of a noop, it's not counted in change metrics, but should
+        # be marked as changed to accurately include future churn metrics
+        # An example of this is a diff like:
+        #   "diff --git README.md README.md",
+        #   "index bedbc85..bb033cd 100644",
+        #   "--- README.md",
+        #   "+++ README.md",
+        #   "@@ -8 +8 @@ Code churn has several definitions, the one that to me provides the most value a",
+        #   "-*Reference: https://blog.gitprime.com/why-code-churn-matters/*",
+        #   "+*Reference: https://www.pluralsight.com/blog/teams/why-code-churn-matters*",
+        # In this example, we deleted the line, and then added the line by updating the link
+        # This repo would consider this a "No-Op" as it nets to no change
+        # However, we want to mark line 8 as changed so that all subsequent
+        # changes to line 8 are marked as churn
+        # The thinking behind this is the other updates should have been made
+        # while this change was being made.
+        remove_line_number = removal[0]
+        ensure_line_exists(file_line_churn_dict, remove_line_number)
+        return files, contribution, churn
+
+    for (line_number, lines_removed, lines_added) in compute_changes(removal, addition):
+        # Churn check performed before line modification changes
+        is_churn = is_this_churn(file_line_churn_dict, line_number)
+
+        ensure_line_exists(file_line_churn_dict, line_number)
+        line_count_change_metrics = file_line_churn_dict[line_number]
+
+        line_count_change_metrics["lines_removed"] += lines_removed
+        line_count_change_metrics["lines_added"] += lines_added
+
+        if is_churn:
+            churn += abs(lines_removed) + abs(lines_added)
+        else:
+            contribution += abs(lines_removed) + abs(lines_added)
+
+    return files, contribution, churn
+
+
+def compute_changes(removal, addition):
+    # If both removal and addition affect the same line, net out the change
+    # Returns a list of tuples of type (line_number, lines_removed, lines_added)
+    removed_line_number, lines_removed = removal
+    added_line_number, lines_added = addition
+
+    if removed_line_number == added_line_number:
+        if lines_added >= lines_removed:
+            return [(removed_line_number, 0, (lines_added - lines_removed))]
+        else:
+            return [(removed_line_number, (lines_removed - lines_added), 0)]
+    else:
+        return [
+            (removed_line_number, lines_removed, 0),
+            (added_line_number, 0, lines_added),
+        ]
+
+
+def is_this_churn(file_line_churn_dict, line_number):
+    # The definition of churn is any change to a line
+    # after the first time the line has been changed
+    # This is detected by a line operation logged in the file_line_churn_dict
+    return line_number in file_line_churn_dict
+
+
+def ensure_line_exists(file_line_churn_dict, line_number):
+    if line_number not in file_line_churn_dict:
+        file_line_churn_dict[line_number] = {"lines_removed": 0, "lines_added": 0}
+
+
+def ensure_file_exists(files, file):
+    if file not in files:
+        files[file] = {}
+
+
+def is_noop(removal, addition):
+    # A noop event occurs when a change indicates one delete and one add on the same line
+    return removal == addition
 
 
 # arrives in a format such as -13 +27,5 (no commas mean 1 loc change)
@@ -180,6 +261,8 @@ def get_loc_change(loc_changes):
         left = int(left[1:])
         left_dec = 1
 
+    removal = (left, left_dec)
+
     # additions
     right = loc_changes[loc_changes.find(' ')+1:]
     right_dec = 0
@@ -191,10 +274,10 @@ def get_loc_change(loc_changes):
         right = int(right[1:])
         right_dec = 1
 
-    if left == right:
-        return {left: (right_dec - left_dec)}
-    else:
-        return {left : left_dec, right: right_dec}
+    addition = (right, right_dec)
+
+    return (removal, addition)
+
 
 def is_loc_change(result, loc_changes):
     # search for loc changes (@@ ) and update loc_changes variable
