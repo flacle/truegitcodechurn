@@ -26,11 +26,12 @@ Tested with Python version 3.5.3 and Git version 2.20.1
 
 '''
 
-import subprocess
-import shlex
-import os
 import argparse
 import datetime
+import os
+import shlex
+import subprocess
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -66,6 +67,11 @@ def main():
         default = '',
         help = 'the Git repository subdirectory to be excluded'
     )
+    parser.add_argument(
+        "--show-file-data",
+        action="store_true",
+        help="Display line change information for the analyzed file(s)"
+    )
     args = parser.parse_args()
 
     after  = args.after
@@ -84,6 +90,69 @@ def main():
 
     commits = get_commits(before, after, author, dir)
 
+    files, contribution, churn = calculate_statistics(commits, dir, exdir)
+
+    # if author is empty then print a unique list of authors
+    if len(author.strip()) == 0:
+        authors = set(get_commits(before, after, author, dir, '%an')).__str__()
+        authors = authors.replace('{', '').replace('}', '').replace("'","")
+        print('authors: \t', authors)
+    else:
+        print('author: \t', author)
+    print('contribution: \t', contribution)
+    print('churn: \t\t', -churn)
+    # print files in case more granular results are needed
+    #print('files: ', files)
+
+    if args.show_file_data:
+        display_file_metrics(files)
+
+
+def display_file_metrics(files):
+    display_file_metrics_header()
+    for file_name, line_change_info in files.items():
+        for line_number, line_diff_stats in line_change_info.items():
+            display_file_metrics_row(file_name, line_number, line_diff_stats)
+
+
+def display_file_metrics_header():
+    print("-" * 79)
+    print(
+        "{file}|{line_number}|{lines_added}|{lines_removed}".format(
+            file=format_column("FILE NAME", 34),
+            line_number=format_column("LINE #", 10),
+            lines_added=format_column("ADDED", 10),
+            lines_removed=format_column("REMOVED", 10),
+        )
+    )
+
+
+def display_file_metrics_row(file_name, line_number, line_diff_stats):
+    added = line_diff_stats.get("lines_added")
+    removed = line_diff_stats.get("lines_removed")
+
+    if added == 0 and removed == 0:
+        return
+    print("-" * 79)
+    print(
+        "{file}|{ln}|{lines_added}|{lines_removed}".format(
+            file=format_column(file_name, 34),
+            ln=format_column(str(line_number), 10),
+            lines_added=format_column(str(added), 10),
+            lines_removed=format_column(str(removed), 10),
+        )
+    )
+
+
+def format_column(text, width):
+    text_length = len(text)
+    total_pad = width - text_length
+    pad_left = total_pad // 2
+    pad_right = total_pad - pad_left
+    return (" " * pad_left) + text + (" " * pad_right)
+
+
+def calculate_statistics(commits, dir, exdir):
     # structured like this: files -> LOC
     files = {}
 
@@ -100,17 +169,9 @@ def main():
             exdir
         )
 
-    # if author is empty then print a unique list of authors
-    if len(author.strip()) == 0:
-        authors = set(get_commits(before, after, author, dir, '%an')).__str__()
-        authors = authors.replace('{', '').replace('}', '').replace("'","")
-        print('authors: \t', authors)
-    else:
-        print('author: \t', author)
-    print('contribution: \t', contribution)
-    print('churn: \t\t', -churn)
-    # print files in case more granular results are needed
-    #print('files: ', files)
+    return files, contribution, churn
+    
+
 
 def get_loc(commit, dir, files, contribution, churn, exdir):
     # git show automatically excludes binary file changes
@@ -118,7 +179,7 @@ def get_loc(commit, dir, files, contribution, churn, exdir):
     if len(exdir) > 1:
         # https://stackoverflow.com/a/21079437
         command += ' -- . ":(exclude,icase)'+exdir+'"'
-    results = get_proc_out(command, dir).splitlines()
+    results = get_commit_results(command, dir) 
     file = ''
     loc_changes = ''
 
@@ -133,17 +194,98 @@ def get_loc(commit, dir, files, contribution, churn, exdir):
             new_loc_changes = is_loc_change(result, loc_changes)
             if loc_changes != new_loc_changes:
                 loc_changes = new_loc_changes
-                locc = get_loc_change(loc_changes)
-                for loc in locc:
-                    if loc in files[file]:
-                        files[file][loc] += locc[loc]
-                        churn += abs(locc[loc])
-                    else:
-                        files[file][loc] = locc[loc]
-                        contribution += abs(locc[loc])
+                (removal, addition) = get_loc_change(loc_changes)
+
+                files, contribution, churn = merge_operations(removal, addition, files, contribution, churn, file)
             else:
                 continue
     return [files, contribution, churn]
+
+
+def merge_operations(removal, addition, files, contribution, churn, file):
+    # Ensure all required data is in place
+    ensure_file_exists(files, file)
+
+    file_line_churn_dict = files[file]
+
+    if is_noop(removal, addition):
+        # In the case of a noop, it's not counted in change metrics, but should
+        # be marked as changed to accurately include future churn metrics
+        # An example of this is a diff like:
+        #   "diff --git README.md README.md",
+        #   "index bedbc85..bb033cd 100644",
+        #   "--- README.md",
+        #   "+++ README.md",
+        #   "@@ -8 +8 @@ Code churn has several definitions, the one that to me provides the most value a",
+        #   "-*Reference: https://blog.gitprime.com/why-code-churn-matters/*",
+        #   "+*Reference: https://www.pluralsight.com/blog/teams/why-code-churn-matters*",
+        # In this example, we deleted the line, and then added the line by updating the link
+        # This repo would consider this a "No-Op" as it nets to no change
+        # However, we want to mark line 8 as changed so that all subsequent
+        # changes to line 8 are marked as churn
+        # The thinking behind this is the other updates should have been made
+        # while this change was being made.
+        remove_line_number = removal[0]
+        ensure_line_exists(file_line_churn_dict, remove_line_number)
+        return files, contribution, churn
+
+    for (line_number, lines_removed, lines_added) in compute_changes(removal, addition):
+        # Churn check performed before line modification changes
+        is_churn = is_this_churn(file_line_churn_dict, line_number)
+
+        ensure_line_exists(file_line_churn_dict, line_number)
+        line_count_change_metrics = file_line_churn_dict[line_number]
+
+        line_count_change_metrics["lines_removed"] += lines_removed
+        line_count_change_metrics["lines_added"] += lines_added
+
+        if is_churn:
+            churn += abs(lines_removed) + abs(lines_added)
+        else:
+            contribution += abs(lines_removed) + abs(lines_added)
+
+    return files, contribution, churn
+
+
+def compute_changes(removal, addition):
+    # If both removal and addition affect the same line, net out the change
+    # Returns a list of tuples of type (line_number, lines_removed, lines_added)
+    removed_line_number, lines_removed = removal
+    added_line_number, lines_added = addition
+
+    if removed_line_number == added_line_number:
+        if lines_added >= lines_removed:
+            return [(removed_line_number, 0, (lines_added - lines_removed))]
+        else:
+            return [(removed_line_number, (lines_removed - lines_added), 0)]
+    else:
+        return [
+            (removed_line_number, lines_removed, 0),
+            (added_line_number, 0, lines_added),
+        ]
+
+
+def is_this_churn(file_line_churn_dict, line_number):
+    # The definition of churn is any change to a line
+    # after the first time the line has been changed
+    # This is detected by a line operation logged in the file_line_churn_dict
+    return line_number in file_line_churn_dict
+
+
+def ensure_line_exists(file_line_churn_dict, line_number):
+    if line_number not in file_line_churn_dict:
+        file_line_churn_dict[line_number] = {"lines_removed": 0, "lines_added": 0}
+
+
+def ensure_file_exists(files, file):
+    if file not in files:
+        files[file] = {}
+
+
+def is_noop(removal, addition):
+    # A noop event occurs when a change indicates one delete and one add on the same line
+    return removal == addition
+
 
 # arrives in a format such as -13 +27,5 (no commas mean 1 loc change)
 # this is the chunk header where '-' is old and '+' is new
@@ -161,6 +303,8 @@ def get_loc_change(loc_changes):
         left = int(left[1:])
         left_dec = 1
 
+    removal = (left, left_dec)
+
     # additions
     right = loc_changes[loc_changes.find(' ')+1:]
     right_dec = 0
@@ -172,10 +316,10 @@ def get_loc_change(loc_changes):
         right = int(right[1:])
         right_dec = 1
 
-    if left == right:
-        return {left: (right_dec - left_dec)}
-    else:
-        return {left : left_dec, right: right_dec}
+    addition = (right, right_dec)
+
+    return (removal, addition)
+
 
 def is_loc_change(result, loc_changes):
     # search for loc changes (@@ ) and update loc_changes variable
