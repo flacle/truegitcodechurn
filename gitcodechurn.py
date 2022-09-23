@@ -35,7 +35,7 @@ import datetime
 def main():
     parser = argparse.ArgumentParser(
         description = 'Compute true git code churn to understand tech debt.',
-        usage       = 'python [*/]gitcodechurn.py after="YYYY[-MM[-DD]]" before="YYYY[-MM[-DD]]" author="flacle" dir="[*/]path" [-exdir="[*/]path"]',
+        usage       = 'python [*/]gitcodechurn.py after="YYYY[-MM[-DD]]" before="YYYY[-MM[-DD]]" author="flacle" dir="[*/]path" [-exdir="[*/]path"] [-charset="utf-8"]',
         epilog      = 'Feel free to fork at or contribute on: https://github.com/flacle/truegitcodechurn'
     )
     parser.add_argument(
@@ -66,6 +66,12 @@ def main():
         default = '',
         help = 'the Git repository subdirectory to be excluded'
     )
+    parser.add_argument(
+       '-charset',
+       type = str,
+       default = 'utf-8',
+       help = 'specify charset or decoding to use for files defaults to utf-8' 
+    )
     args = parser.parse_args()
 
     after  = args.after
@@ -74,6 +80,8 @@ def main():
     dir    = args.dir
     # exdir is optional
     exdir  = args.exdir
+    # charset is optional
+    charset = args.charset
 
     # for the positionals we remove the prefixes
     # TODO not sure why this is happening
@@ -82,7 +90,7 @@ def main():
     author  = remove_prefix(author, 'author=')
     # dir is already handled in dir_path()
 
-    commits = get_commits(before, after, author, dir)
+    commits = get_commits(before, after, author, dir, charset)
 
     # structured like this: files -> LOC
     files = {}
@@ -97,12 +105,13 @@ def main():
             files,
             contribution,
             churn,
-            exdir
+            exdir,
+            charset
         )
 
     # if author is empty then print a unique list of authors
     if len(author.strip()) == 0:
-        authors = set(get_commits(before, after, author, dir, '%an')).__str__()
+        authors = set(get_commits(before, after, author, dir, charset, '%an')).__str__()
         authors = authors.replace('{', '').replace('}', '').replace("'","")
         print('authors: \t', authors)
     else:
@@ -112,13 +121,13 @@ def main():
     # print files in case more granular results are needed
     #print('files: ', files)
 
-def get_loc(commit, dir, files, contribution, churn, exdir):
+def get_loc(commit, dir, files, contribution, churn, exdir, charset):
     # git show automatically excludes binary file changes
     command = 'git show --format= --unified=0 --no-prefix ' + commit
     if len(exdir) > 1:
         # https://stackoverflow.com/a/21079437
         command += ' -- . ":(exclude,icase)'+exdir+'"'
-    results = get_proc_out(command, dir).splitlines()
+    results = get_proc_out(command, dir, charset).splitlines()
     file = ''
     loc_changes = ''
 
@@ -194,12 +203,12 @@ def is_new_file(result, file):
         return file
 
 # use format='%an' to get a list of author names
-def get_commits(before, after, author, dir, format='%h'):
+def get_commits(before, after, author, dir, charset, format='%h'):
     # note --no-merges flag (usually we coders do not overhaul contrib commits)
     # note --reverse flag to traverse history from past to present
     command = 'git log --author="'+author+'" --format="'+format+'" --no-abbrev '
     command += '--before="'+before+'" --after="'+after+'" --no-merges --reverse'
-    return get_proc_out(command, dir).splitlines()
+    return get_proc_out(command, dir, charset).splitlines()
 
 # issue #6: append to date if it's missing month or day values
 def format_date(d):
@@ -236,7 +245,7 @@ def get_files(commit, dir):
         results[i] = results[i][results[i].rfind('\t')+1:]
     return(results)
 
-def get_proc_out(command, dir):
+def get_proc_out(command, dir, charset):
     process = subprocess.Popen(
         command,
         stdout=subprocess.PIPE,
@@ -244,7 +253,7 @@ def get_proc_out(command, dir):
         cwd=dir,
         shell=True
     )
-    return process.communicate()[0].decode("utf-8")
+    return process.communicate()[0].decode(charset)
 
 # https://stackoverflow.com/a/54547257
 def dir_path(path):
