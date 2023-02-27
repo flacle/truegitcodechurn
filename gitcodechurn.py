@@ -171,6 +171,8 @@ def calculate_statistics(commits, dir, exdir):
 
     return files, contribution, churn
     
+def get_commit_results(command, dir):
+    return get_proc_out(command, dir).splitlines()
 
 
 def get_loc(commit, dir, files, contribution, churn, exdir):
