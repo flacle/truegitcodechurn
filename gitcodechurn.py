@@ -1,7 +1,9 @@
 '''
-Author: Francis Laclé
+Authors: 
+- Francis Laclé
+- Jonathan Guerne
 License: MIT
-Version: 1.0.1
+Version: 1.2.1
 
 Script to compute "true" code churn of a Git repository.
 
